@@ -1,366 +1,116 @@
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="utf-8">    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
-    <link rel="stylesheet" type="text/css" href="style.css">
-    <script src="jquery-3.1.1.min.js"></script>
-  </head>
-  <body>
-    <div id="map_canvas">
-    </div>
-  </body>
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+        <link rel="stylesheet" type="text/css" href="style.css">
+        <script src="jquery-3.1.1.min.js"></script>
+    </head>
+    <body>
+        <div id="map_canvas">
+        </div>
+    </body>
 
-  <script>
-  //adresse a changer en fonction de l'url du serveur
-  var url = "192.168.1.16:8080"
+    <script>
+        //adresse a changer en fonction de l'url du serveur
+        var url = "192.168.1.39:8080"
+        var maCarte="";
 
-  function locate(){
-      //on passe par la fonction initialize pour récup la position actuelle, si la localisation est bloqué on affiche un message d'erreur
-      navigator.geolocation.getCurrentPosition(initialize, fail);
-    }
-
-    function initialize(position) {
-      //IMAGE BLEU POUR LA GEOLOCALISATION
-      var im = 'http://www.robotwoods.com/dev/misc/bluecircle.png';
-
-      var maCarte = new google.maps.Map( document.getElementById("map_canvas"), {zoom: 13});
-      var pos = {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude
-      };
-      var optionsMarqueur = {
-        map: maCarte,
-        position: pos,
-        icon:im
-      };
-
-      var marqueur = new google.maps.Marker( optionsMarqueur );
-      maCarte.setCenter(pos);
-
-    // CODE A UTILISER QUAND SERVEUR PRESENT
-    /*$.ajax({
-        type: 'GET',
-        dataType: 'json',
-        data: {},
-        url: "http://"+url+"/stations",
-        error: function (jqXHR, textStatus, errorThrown) {
-            console.log(jqXHR);
-        },
-        success: function (msg) {
-          console.log(msg);
+        function locate() {
+            //on passe par la fonction initialize pour récup la position actuelle, si la localisation est bloqué on affiche un message d'erreur
+            navigator.geolocation.getCurrentPosition(initialize, fail);
         }
-      });*/
 
+        function initialize(position) {
+            //IMAGE BLEU POUR LA GEOLOCALISATION
+            var im = 'http://www.robotwoods.com/dev/misc/bluecircle.png';
 
-      // POUR CHAQUE STATION ON AJOUTE UN MARQUER
-      stations.stations.forEach( function(station){ 
-        var optionsMarqueur = {
-          map: maCarte,
-          position: new google.maps.LatLng( station.latitude, station.longitude ) ,
-          icon : (station.nbCar==station.nbMaxCar)?image_complet:((station.nbCar==0)?image_vide:image_présent),
-          value:station.id
-        };
-        var marqueur = new google.maps.Marker( optionsMarqueur );
+            maCarte = new google.maps.Map(document.getElementById("map_canvas"), {zoom: 14});
+            if (position != null) {
+                var pos = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                var optionsMarqueur = {
+                    map: maCarte,
+                    position: pos,
+                    icon: im
+                };
+                var marqueur = new google.maps.Marker(optionsMarqueur);
+                maCarte.setCenter(pos);
+            } else {
+                maCarte.setCenter({lat: 45.75, lng: 4.85});
+            }
 
+            var stations = "";
+            // CODE A UTILISER QUAND SERVEUR PRESENT
+            $.ajax({
+                type: 'GET',
+                dataType: 'json',
+                data: {},
+                url: "http://" + url + "/stations",
+                error: function (jqXHR, textStatus, errorThrown) {
+                    alert('Erreur lors du chargement des stations, veuillez recharger la page. \nSi le problème persiste, veuillez contacter le Service Informatique');
+                },
+                success: function (msg) {
+                    // POUR CHAQUE STATION ON AJOUTE UN MARQUER
+                    msg.stations.forEach(function (station) {
+                        var optionsMarqueur = {
+                            map: maCarte,
+                            position: new google.maps.LatLng(station.latitude, station.longitude),
+                            icon: (station.nbCar == 0) ? image_vide : ((station.nbCar <= 2) ? image_présent : image_complet),
+                            value: station.id
+                        };
+                        var marqueur = new google.maps.Marker(optionsMarqueur);
+                        // SUR CHAQUE MARQUE ON AJOUTE UN LISTENER QUI VA REPERER LE CLICK DESSUS ET AFFICHER LES DETAILS
+                        marqueur.addListener('click', function () {
+                            $.ajax({
+                                type: 'GET',
+                                dataType: 'json',
+                                data: {},
+                                url: "http://" + url + "/station?id=" + marqueur.value,
+                                error: function (jqXHR, textStatus, errorThrown) {
+                                    alert('Erreur lors du chargement des informations de la station, veuillez reessayer plus tard.');
+                                },
+                                success: function (msg) {
+                                    var bornedetail = "";
+                                    msg.bornes.forEach(function (borne) {
+                                        bornedetail += '<p>Borne n° ' + borne.idBorne + ((!borne.vehicule) ? ' - Véhicule non présent' : ' - ' + borne.vehicule.typeVehicule.type) + '</p>'
+                                    })
+                                    var contentString = '<div id="content">' +
+                                            '<h1>' + msg.numero + ' ' + msg.adresse + '</h1>' +
+                                            '<h2>' + msg.ville + ' ' + msg.codePostal + '</h2>' +
+                                            '<div id="bodyContent">' +
+                                            bornedetail +
+                                            '</div></div>' +
+                                            '<img src="https://maps.googleapis.com/maps/api/streetview?size='+(screen.width>600?600:screen.width/2)+'x'+(screen.width>600?300:screen.width/4)+'&location=' + station.latitude + ',' + station.longitude + '">';
 
-
-        // SUR CHAQUE MARQUE ON AJOUTE UN LISTENER QUI VA REPERER LE CLICK DESSUS ET AFFICHER LES DETAILS
-        var bornedetail="";
-        station1.bornes.forEach( function(borne){
-          bornedetail+='<p>Borne numéro '+borne.idBorne+ ((!borne.vehicule)?' Véhicule non présent': ' '+borne.vehicule.typeVehicule.type) +'</p>'
-        })
-        var contentString = '<div id="content">'+
-        '<h1>'+station1.numero+' '+station1.adresse+'</h1>'+
-        '<h2>'+station1.ville +' '+station1.codePostal +'</h2>'+
-        '<div id="bodyContent">'+
-        bornedetail+
-        '</div>'+
-        '</div><img src="https://maps.googleapis.com/maps/api/streetview?size=600x300&location='+station.latitude+','+station.longitude+'&heading=151.78&pitch=-0.76">'  ;
-
-        var infowindow = new google.maps.InfoWindow({
-          content: contentString
-        });
-
-        marqueur.addListener('click', function() {
-          infowindow.open(maCarte, marqueur);
-        });
-      });
-}
-
-
-    // Fonction a améliorer et a décider (si pas de localisation on affiche quoi? centre de lyon, barycentre des stations,...)
-    function fail(erreur){
-      var div=document.getElementById("map_canvas");
-      div.innerHTML="Erreur lors du chargement de la localisation, nous ne pouvons acceder a votre demande. Veuillez authoriser la localisation";
-    }
-
-
+                                    var infowindow = new google.maps.InfoWindow({
+                                        content: contentString
+                                    });
+                                    if (last_openwindow != null) {
+                                        last_openwindow.close();
+                                    }
+                                    infowindow.open(maCarte, marqueur);
+                                    last_openwindow = infowindow;
+                                }
+                            });
+                        });
+                    });
+                }
+            });
+        }
+        // Fonction a améliorer et a décider (si pas de localisation on affiche quoi? centre de lyon, barycentre des stations,...)
+        function fail(erreur) {
+            alert("Erreur lors du chargement de la localisation, nous ne pouvons acceder a votre demande. Veuillez autoriser la localisation");
+            initialize(null);
+        }
     </script>
     <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAd8uGJEdFvOjHRxtMNoHFl6u9hdVrNSWQ&callback=locate"></script>
-    </html> 
-
-
-
-    <script>
-    image_complet="http://maps.google.com/mapfiles/ms/icons/green-dot.png"
-    image_vide="http://maps.google.com/mapfiles/ms/icons/red-dot.png"
-    image_présent="http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
-    stations ={
-      "stations": [{
-        "id": 1,
-        "latitude": 45.745013,
-        "longitude": 4.871353,
-        "nbCar": 4,
-        "nbMaxCar": 4
-      }, {
-        "id": 2,
-        "latitude": 45.756529,
-        "longitude": 4.835870,
-        "nbCar": 0,
-        "nbMaxCar": 6
-      }, {
-        "id": 3,
-        "latitude": 45.736646,
-        "longitude": 4.869195,
-        "nbCar": 4,
-        "nbMaxCar": 4
-      }, {
-        "id": 4,
-        "latitude": 45.746291,
-        "longitude": 4.836518,
-        "nbCar": 4,
-        "nbMaxCar": 4
-      }, {
-        "id": 5,
-        "latitude": 45.767066,
-        "longitude": 4.859037,
-        "nbCar": 4,
-        "nbMaxCar": 4
-      }, {
-        "id": 6,
-        "latitude": 45.750515,
-        "longitude": 4.828684,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 7,
-        "latitude": 45.759626,
-        "longitude": 4.831426,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 8,
-        "latitude": 45.742935,
-        "longitude": 4.821108,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 9,
-        "latitude": 45.770582,
-        "longitude": 4.863906,
-        "nbCar": 3,
-        "nbMaxCar": 6
-      }, {
-        "id": 10,
-        "latitude": 45.763898,
-        "longitude": 4.837211,
-        "nbCar": 4,
-        "nbMaxCar": 8
-      }, {
-        "id": 11,
-        "latitude": 45.763593,
-        "longitude": 4.837556,
-        "nbCar": 1,
-        "nbMaxCar": 2
-      }, {
-        "id": 12,
-        "latitude": 45.781623,
-        "longitude": 4.833029,
-        "nbCar": 3,
-        "nbMaxCar": 6
-      }, {
-        "id": 13,
-        "latitude": 45.756493,
-        "longitude": 4.841091,
-        "nbCar": 3,
-        "nbMaxCar": 6
-      }, {
-        "id": 14,
-        "latitude": 45.779842,
-        "longitude": 4.804396,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 15,
-        "latitude": 45.766982,
-        "longitude": 4.804261,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 16,
-        "latitude": 45.774699,
-        "longitude": 4.833476,
-        "nbCar": 5,
-        "nbMaxCar": 10
-      }, {
-        "id": 17,
-        "latitude": 45.768490,
-        "longitude": 4.836873,
-        "nbCar": 4,
-        "nbMaxCar": 8
-      }, {
-        "id": 18,
-        "latitude": 45.767306,
-        "longitude": 4.878818,
-        "nbCar": 3,
-        "nbMaxCar": 6
-      }, {
-        "id": 19,
-        "latitude": 45.736826,
-        "longitude": 4.836859,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 20,
-        "latitude": 45.746043,
-        "longitude": 4.841807,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 21,
-        "latitude": 45.763210,
-        "longitude": 4.851320,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 22,
-        "latitude": 45.756331,
-        "longitude": 4.878070,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 23,
-        "latitude": 45.768299,
-        "longitude": 4.843074,
-        "nbCar": 3,
-        "nbMaxCar": 6
-      }, {
-        "id": 24,
-        "latitude": 45.760181,
-        "longitude": 4.863023,
-        "nbCar": 3,
-        "nbMaxCar": 6
-      }, {
-        "id": 25,
-        "latitude": 45.760573,
-        "longitude": 4.857305,
-        "nbCar": 3,
-        "nbMaxCar": 6
-      }, {
-        "id": 26,
-        "latitude": 45.756497,
-        "longitude": 4.796727,
-        "nbCar": 1,
-        "nbMaxCar": 2
-      }, {
-        "id": 27,
-        "latitude": 45.760683,
-        "longitude": 4.835688,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 28,
-        "latitude": 45.762946,
-        "longitude": 4.832010,
-        "nbCar": 3,
-        "nbMaxCar": 6
-      }, {
-        "id": 29,
-        "latitude": 45.758435,
-        "longitude": 4.826310,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 30,
-        "latitude": 45.761159,
-        "longitude": 4.828415,
-        "nbCar": 3,
-        "nbMaxCar": 6
-      }, {
-        "id": 31,
-        "latitude": 45.757101,
-        "longitude": 4.815734,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 32,
-        "latitude": 45.768823,
-        "longitude": 4.830700,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 33,
-        "latitude": 45.760267,
-        "longitude": 4.845699,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }, {
-        "id": 34,
-        "latitude": 45.767139,
-        "longitude": 4.833873,
-        "nbCar": 6,
-        "nbMaxCar": 12
-      }, {
-        "id": 35,
-        "latitude": 45.775182,
-        "longitude": 4.805386,
-        "nbCar": 2,
-        "nbMaxCar": 4
-      }]
-    };
-
-    var station1={
-      "id": 1,
-      "latitude": 45.745013,
-      "longitude": 4.871353,
-      "adresse": "Place Ambroise Courtois",
-      "numero": 18,
-      "ville": "LYON",
-      "codePostal": 69003,
-      "bornes": [{
-        "idBorne": 1,
-        "etatBorne": false,
-        "vehicule": {
-          "idVehicule": 1,
-          "rfid": 1234567891,
-          "etatBatterie": 100,
-          "typeVehicule": {
-            "categorie": "Petite citadine",
-            "type": "Toyota Aygo"
-          }
-        }
-      }, {
-        "idBorne": 3,
-        "etatBorne": true,
-        "vehicule": null
-      }, {
-        "idBorne": 2,
-        "etatBorne": false,
-        "vehicule": {
-          "idVehicule": 2,
-          "rfid": 1234567892,
-          "etatBatterie": 100,
-          "typeVehicule": {
-            "categorie": "Petite citadine",
-            "type": "Toyota Aygo"
-          }
-        }
-      }, {
-        "idBorne": 4,
-        "etatBorne": true,
-        "vehicule": null
-      }]
-    };
-
-    </script>
+</html>
+<script>
+  image_complet = "http://maps.google.com/mapfiles/ms/icons/green-dot.png";
+  image_vide = "http://maps.google.com/mapfiles/ms/icons/red-dot.png";
+  image_présent = "http://maps.google.com/mapfiles/ms/icons/orange-dot.png";
+  last_openwindow = null;
+</script>
